@@ -33,7 +33,6 @@ body {
   background: linear-gradient(135deg, #e94560, #0f3460);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: none;
 }
 #menu p {
   font-size: clamp(14px, 4vw, 18px);
@@ -47,7 +46,7 @@ body {
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s;
   color: #fff;
   font-weight: bold;
   display: flex;
@@ -100,43 +99,64 @@ body {
   font-weight: bold;
   color: #e94560;
 }
+
+/* 棋盘 - 4列网格 */
 #board {
   flex: 1;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-direction: column;
   position: relative;
   overflow: hidden;
   background: #16213e;
 }
-.column {
-  position: relative;
-  border-right: 1px solid rgba(255,255,255,0.1);
+.row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  flex-shrink: 0;
 }
-.column:last-child { border-right: none; }
-.tile {
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  height: 120px;
-  border-radius: 8px;
+.cell {
+  aspect-ratio: 1;
+  border: 1px solid rgba(255,255,255,0.08);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
   overflow: hidden;
-  transition: opacity 0.1s;
 }
-.tile img {
+.cell.active {
+  background: rgba(233,69,96,0.15);
+}
+.cell.active img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 8px;
   pointer-events: none;
 }
-.tile.hit {
-  opacity: 0;
-  pointer-events: none;
+.cell.wrong {
+  background: rgba(255,0,0,0.5) !important;
 }
-.tile.missed {
-  border: 3px solid red;
-  opacity: 0.5;
+.cell.correct {
+  background: rgba(0,255,100,0.3) !important;
+}
+
+/* 底部行高亮 */
+.row.current {
+  border: 2px solid rgba(233,69,96,0.4);
+}
+
+/* 游戏结束遮罩 */
+#gameOverOverlay {
+  display: none;
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 50;
+  justify-content: center;
+  align-items: center;
+  font-size: clamp(30px, 10vw, 60px);
+  font-weight: bold;
+  color: #e94560;
 }
 
 /* 结果页 */
@@ -163,6 +183,10 @@ body {
   font-size: clamp(16px, 4vw, 22px);
   color: #aaa;
 }
+#result .game-over-reason {
+  font-size: clamp(14px, 3.5vw, 18px);
+  color: #e94560;
+}
 .result-btn {
   padding: 14px 40px;
   font-size: clamp(16px, 5vw, 20px);
@@ -177,41 +201,6 @@ body {
 .result-btn:active { transform: scale(0.95); }
 #restartBtn { background: linear-gradient(135deg, #e94560, #c23152); }
 #backBtn { background: linear-gradient(135deg, #0f3460, #16213e); }
-
-/* 点击反馈 */
-.click-feedback {
-  position: absolute;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(233, 69, 96, 0.6);
-  pointer-events: none;
-  animation: ripple 0.4s ease-out forwards;
-  z-index: 50;
-}
-@keyframes ripple {
-  0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-  100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
-}
-
-/* 连击提示 */
-.combo-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 24px;
-  font-weight: bold;
-  color: #ffdd57;
-  pointer-events: none;
-  animation: comboUp 0.6s ease-out forwards;
-  z-index: 50;
-  text-shadow: 0 0 10px rgba(255,221,87,0.8);
-}
-@keyframes comboUp {
-  0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -80%) scale(1.5); }
-}
 </style>
 </head>
 <body>
@@ -240,18 +229,15 @@ body {
     <div class="timer"><span id="timerDisplay">15.0</span>s</div>
   </div>
   <div id="countdown"></div>
-  <div id="board">
-    <div class="column" data-col="0"></div>
-    <div class="column" data-col="1"></div>
-    <div class="column" data-col="2"></div>
-    <div class="column" data-col="3"></div>
-  </div>
+  <div id="gameOverOverlay"></div>
+  <div id="board"></div>
 </div>
 
 <!-- 结果 -->
 <div id="result">
   <h2>游戏结束！</h2>
   <div class="final-score" id="finalScore">0</div>
+  <div class="game-over-reason" id="gameOverReason"></div>
   <div class="comment" id="comment"></div>
   <button class="result-btn" id="restartBtn" onclick="restartGame()">再来一局</button>
   <button class="result-btn" id="backBtn" onclick="backToMenu()">返回选择</button>
@@ -259,24 +245,16 @@ body {
 
 <script>
 const GAME_DURATION = 15;
-const TILE_HEIGHT = 120;
-const TILE_GAP = 20;
-const BASE_SPEED = 3;
+const VISIBLE_ROWS = 6;
 
 let currentMode = '';
 let currentImage = '';
 let score = 0;
-let combo = 0;
 let timeLeft = GAME_DURATION;
 let gameRunning = false;
-let tiles = [];
-let tileId = 0;
-let spawnTimer = 0;
-let spawnInterval = 40;
-let speed = BASE_SPEED;
-let animFrame = null;
+let gameOverReason = '';
+let rows = []; // each row: { el, activeCol }
 let timerInterval = null;
-let lastCol = -1;
 
 const modeImages = {
   '唧唧糖蜜': '唧唧糖蜜.jpg',
@@ -312,151 +290,140 @@ function startCountdown() {
   }, 700);
 }
 
+function createRow() {
+  const activeCol = Math.floor(Math.random() * 4);
+  const rowEl = document.createElement('div');
+  rowEl.className = 'row';
+
+  for (let c = 0; c < 4; c++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.col = c;
+    if (c === activeCol) {
+      cell.classList.add('active');
+      cell.innerHTML = `<img src="${currentImage}" alt="">`;
+    }
+    cell.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      handleCellClick(cell, c);
+    });
+    rowEl.appendChild(cell);
+  }
+
+  return { el: rowEl, activeCol };
+}
+
+function renderBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  // Rows are displayed top-to-bottom; bottom row = rows[rows.length-1] is the current one to click
+  for (const row of rows) {
+    board.appendChild(row.el);
+    row.el.classList.remove('current');
+  }
+  // Mark bottom row as current
+  if (rows.length > 0) {
+    rows[rows.length - 1].el.classList.add('current');
+  }
+}
+
+function handleCellClick(cell, col) {
+  if (!gameRunning) return;
+
+  const bottomRow = rows[rows.length - 1];
+  const clickedRow = cell.closest('.row');
+
+  // Must click bottom row
+  if (clickedRow !== bottomRow.el) {
+    // Clicked wrong row - game over
+    cell.classList.add('wrong');
+    endGame('点错位置了！');
+    return;
+  }
+
+  if (col === bottomRow.activeCol) {
+    // Correct!
+    cell.classList.add('correct');
+    score++;
+    document.getElementById('scoreDisplay').textContent = score;
+
+    // Remove bottom row and add new row on top
+    setTimeout(() => {
+      bottomRow.el.remove();
+      rows.pop();
+      const newRow = createRow();
+      rows.unshift(newRow);
+      renderBoard();
+    }, 80);
+  } else {
+    // Wrong cell - game over
+    cell.classList.add('wrong');
+    // Show which one was correct
+    const correctCell = bottomRow.el.children[bottomRow.activeCol];
+    correctCell.style.border = '3px solid #00ff66';
+    endGame('点错位置了！');
+  }
+}
+
 function startGame() {
   score = 0;
-  combo = 0;
   timeLeft = GAME_DURATION;
-  tiles = [];
-  tileId = 0;
-  spawnTimer = 0;
-  spawnInterval = 40;
-  speed = BASE_SPEED;
-  lastCol = -1;
   gameRunning = true;
+  gameOverReason = '';
+  rows = [];
 
   document.getElementById('scoreDisplay').textContent = '0';
   document.getElementById('timerDisplay').textContent = GAME_DURATION.toFixed(1);
+  document.getElementById('timerDisplay').style.color = '#e94560';
+  document.getElementById('gameOverOverlay').style.display = 'none';
 
-  document.querySelectorAll('.column').forEach(c => c.innerHTML = '');
+  // Create initial rows
+  for (let i = 0; i < VISIBLE_ROWS; i++) {
+    rows.push(createRow());
+  }
+  renderBoard();
 
   timerInterval = setInterval(() => {
     timeLeft -= 0.1;
     if (timeLeft <= 0) {
       timeLeft = 0;
-      endGame();
+      endGame('时间到！');
     }
     document.getElementById('timerDisplay').textContent = timeLeft.toFixed(1);
     if (timeLeft <= 5) {
       document.getElementById('timerDisplay').style.color = '#ff0000';
     }
   }, 100);
-
-  animFrame = requestAnimationFrame(gameLoop);
 }
 
-function gameLoop() {
-  if (!gameRunning) return;
+function endGame(reason) {
+  gameRunning = false;
+  gameOverReason = reason;
+  clearInterval(timerInterval);
 
-  spawnTimer++;
-  if (spawnTimer >= spawnInterval) {
-    spawnTimer = 0;
-    spawnTile();
-  }
-
-  // Increase difficulty
-  if (score > 20) { speed = BASE_SPEED + 1; spawnInterval = 35; }
-  if (score > 50) { speed = BASE_SPEED + 2; spawnInterval = 30; }
-  if (score > 80) { speed = BASE_SPEED + 3; spawnInterval = 25; }
-
-  const boardHeight = document.getElementById('board').clientHeight;
-
-  for (let i = tiles.length - 1; i >= 0; i--) {
-    const t = tiles[i];
-    if (t.hit) continue;
-    t.y += speed;
-    t.el.style.top = t.y + 'px';
-
-    if (t.y > boardHeight + 10) {
-      t.el.remove();
-      tiles.splice(i, 1);
-      combo = 0;
-    }
-  }
-
-  animFrame = requestAnimationFrame(gameLoop);
-}
-
-function spawnTile() {
-  let col;
-  do {
-    col = Math.floor(Math.random() * 4);
-  } while (col === lastCol);
-  lastCol = col;
-
-  const tile = document.createElement('div');
-  tile.className = 'tile';
-  tile.innerHTML = `<img src="${currentImage}" alt="">`;
-  const id = tileId++;
-  tile.dataset.id = id;
-
-  const column = document.querySelector(`.column[data-col="${col}"]`);
-  column.appendChild(tile);
-
-  const tileData = { id, col, y: -TILE_HEIGHT, hit: false, el: tile };
-  tile.style.top = tileData.y + 'px';
-  tiles.push(tileData);
-
-  tile.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    hitTile(tileData, e);
-  });
-}
-
-function hitTile(t, e) {
-  if (t.hit || !gameRunning) return;
-  t.hit = true;
-  t.el.classList.add('hit');
-  score++;
-  combo++;
-  document.getElementById('scoreDisplay').textContent = score;
-
-  // Click feedback
-  const rect = t.el.getBoundingClientRect();
-  const fb = document.createElement('div');
-  fb.className = 'click-feedback';
-  fb.style.left = (e.clientX - rect.left) + 'px';
-  fb.style.top = (e.clientY - rect.top) + 'px';
-  t.el.appendChild(fb);
-
-  // Combo text
-  if (combo >= 5 && combo % 5 === 0) {
-    const ct = document.createElement('div');
-    ct.className = 'combo-text';
-    ct.textContent = `${combo} 连击!`;
-    document.getElementById('board').appendChild(ct);
-    setTimeout(() => ct.remove(), 600);
-  }
+  const overlay = document.getElementById('gameOverOverlay');
+  overlay.textContent = reason;
+  overlay.style.display = 'flex';
 
   setTimeout(() => {
-    t.el.remove();
-    const idx = tiles.indexOf(t);
-    if (idx > -1) tiles.splice(idx, 1);
-  }, 100);
-}
+    document.getElementById('game').style.display = 'none';
+    document.getElementById('result').style.display = 'flex';
+    document.getElementById('finalScore').textContent = score;
+    document.getElementById('gameOverReason').textContent = reason;
 
-function endGame() {
-  gameRunning = false;
-  clearInterval(timerInterval);
-  cancelAnimationFrame(animFrame);
-  document.getElementById('timerDisplay').style.color = '#e94560';
-
-  document.getElementById('game').style.display = 'none';
-  document.getElementById('result').style.display = 'flex';
-  document.getElementById('finalScore').textContent = score;
-
-  let comment = '';
-  if (score >= 100) comment = '太强了！手速之神！';
-  else if (score >= 70) comment = '非常厉害！';
-  else if (score >= 40) comment = '还不错哦~';
-  else if (score >= 20) comment = '继续加油！';
-  else comment = '再练练吧~';
-  document.getElementById('comment').textContent = `${currentMode} 模式 - ${comment}`;
+    let comment = '';
+    if (score >= 100) comment = '太强了！手速之神！';
+    else if (score >= 70) comment = '非常厉害！';
+    else if (score >= 40) comment = '还不错哦~';
+    else if (score >= 20) comment = '继续加油！';
+    else comment = '再练练吧~';
+    document.getElementById('comment').textContent = `${currentMode} 模式 - ${comment}`;
+  }, 1000);
 }
 
 function restartGame() {
   document.getElementById('result').style.display = 'none';
   document.getElementById('game').style.display = 'flex';
-  document.querySelectorAll('.column').forEach(c => c.innerHTML = '');
   startCountdown();
 }
 
