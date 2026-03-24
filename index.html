@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>还没有靠枕</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #1a1a2e;
+  color: #fff;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* 模式选择页 */
+#menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 20px;
+}
+#menu h1 {
+  font-size: clamp(28px, 8vw, 48px);
+  margin-bottom: 10px;
+  background: linear-gradient(135deg, #e94560, #0f3460);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+}
+#menu p {
+  font-size: clamp(14px, 4vw, 18px);
+  color: #aaa;
+  margin-bottom: 20px;
+}
+.mode-btn {
+  width: clamp(200px, 60vw, 300px);
+  padding: 16px 24px;
+  font-size: clamp(16px, 5vw, 22px);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  color: #fff;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.mode-btn:active { transform: scale(0.95); }
+.mode-btn:nth-child(1) { background: linear-gradient(135deg, #e94560, #c23152); }
+.mode-btn:nth-child(2) { background: linear-gradient(135deg, #0f3460, #16213e); }
+.mode-btn:nth-child(3) { background: linear-gradient(135deg, #533483, #3b1f6e); }
+.mode-btn img {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+/* 游戏页 */
+#game {
+  display: none;
+  flex-direction: column;
+  height: 100vh;
+  position: relative;
+}
+#hud {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: rgba(0,0,0,0.6);
+  z-index: 10;
+  flex-shrink: 0;
+}
+#hud .score { font-size: clamp(20px, 6vw, 32px); font-weight: bold; }
+#hud .timer {
+  font-size: clamp(20px, 6vw, 32px);
+  font-weight: bold;
+  color: #e94560;
+}
+#countdown {
+  display: none;
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 100;
+  justify-content: center;
+  align-items: center;
+  font-size: clamp(60px, 20vw, 120px);
+  font-weight: bold;
+  color: #e94560;
+}
+#board {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  position: relative;
+  overflow: hidden;
+  background: #16213e;
+}
+.column {
+  position: relative;
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+.column:last-child { border-right: none; }
+.tile {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 120px;
+  border-radius: 8px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: opacity 0.1s;
+}
+.tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  pointer-events: none;
+}
+.tile.hit {
+  opacity: 0;
+  pointer-events: none;
+}
+.tile.missed {
+  border: 3px solid red;
+  opacity: 0.5;
+}
+
+/* 结果页 */
+#result {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 20px;
+}
+#result h2 {
+  font-size: clamp(24px, 7vw, 40px);
+  color: #e94560;
+}
+#result .final-score {
+  font-size: clamp(60px, 18vw, 120px);
+  font-weight: bold;
+  background: linear-gradient(135deg, #e94560, #533483);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+#result .comment {
+  font-size: clamp(16px, 4vw, 22px);
+  color: #aaa;
+}
+.result-btn {
+  padding: 14px 40px;
+  font-size: clamp(16px, 5vw, 20px);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #fff;
+  font-weight: bold;
+  transition: transform 0.2s;
+  margin-top: 10px;
+}
+.result-btn:active { transform: scale(0.95); }
+#restartBtn { background: linear-gradient(135deg, #e94560, #c23152); }
+#backBtn { background: linear-gradient(135deg, #0f3460, #16213e); }
+
+/* 点击反馈 */
+.click-feedback {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(233, 69, 96, 0.6);
+  pointer-events: none;
+  animation: ripple 0.4s ease-out forwards;
+  z-index: 50;
+}
+@keyframes ripple {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+}
+
+/* 连击提示 */
+.combo-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  font-weight: bold;
+  color: #ffdd57;
+  pointer-events: none;
+  animation: comboUp 0.6s ease-out forwards;
+  z-index: 50;
+  text-shadow: 0 0 10px rgba(255,221,87,0.8);
+}
+@keyframes comboUp {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -80%) scale(1.5); }
+}
+</style>
+</head>
+<body>
+
+<!-- 模式选择 -->
+<div id="menu">
+  <h1>还没有靠枕</h1>
+  <p>选择模式开始游戏</p>
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <button class="mode-btn" onclick="selectMode('唧唧糖蜜')">
+      <img src="唧唧糖蜜.jpg" alt="">唧唧糖蜜
+    </button>
+    <button class="mode-btn" onclick="selectMode('扫福瑞saj')">
+      <img src="扫福瑞saj.jpg" alt="">扫福瑞saj
+    </button>
+    <button class="mode-btn" onclick="selectMode('煞笔宝哥')">
+      <img src="煞笔宝哥.jpg" alt="">煞笔宝哥
+    </button>
+  </div>
+</div>
+
+<!-- 游戏 -->
+<div id="game">
+  <div id="hud">
+    <div class="score">分数: <span id="scoreDisplay">0</span></div>
+    <div class="timer"><span id="timerDisplay">15.0</span>s</div>
+  </div>
+  <div id="countdown"></div>
+  <div id="board">
+    <div class="column" data-col="0"></div>
+    <div class="column" data-col="1"></div>
+    <div class="column" data-col="2"></div>
+    <div class="column" data-col="3"></div>
+  </div>
+</div>
+
+<!-- 结果 -->
+<div id="result">
+  <h2>游戏结束！</h2>
+  <div class="final-score" id="finalScore">0</div>
+  <div class="comment" id="comment"></div>
+  <button class="result-btn" id="restartBtn" onclick="restartGame()">再来一局</button>
+  <button class="result-btn" id="backBtn" onclick="backToMenu()">返回选择</button>
+</div>
+
+<script>
+const GAME_DURATION = 15;
+const TILE_HEIGHT = 120;
+const TILE_GAP = 20;
+const BASE_SPEED = 3;
+
+let currentMode = '';
+let currentImage = '';
+let score = 0;
+let combo = 0;
+let timeLeft = GAME_DURATION;
+let gameRunning = false;
+let tiles = [];
+let tileId = 0;
+let spawnTimer = 0;
+let spawnInterval = 40;
+let speed = BASE_SPEED;
+let animFrame = null;
+let timerInterval = null;
+let lastCol = -1;
+
+const modeImages = {
+  '唧唧糖蜜': '唧唧糖蜜.jpg',
+  '扫福瑞saj': '扫福瑞saj.jpg',
+  '煞笔宝哥': '煞笔宝哥.jpg'
+};
+
+function selectMode(mode) {
+  currentMode = mode;
+  currentImage = modeImages[mode];
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('game').style.display = 'flex';
+  startCountdown();
+}
+
+function startCountdown() {
+  const cd = document.getElementById('countdown');
+  cd.style.display = 'flex';
+  let count = 3;
+  cd.textContent = count;
+  const iv = setInterval(() => {
+    count--;
+    if (count > 0) {
+      cd.textContent = count;
+    } else {
+      cd.textContent = 'GO!';
+      setTimeout(() => {
+        cd.style.display = 'none';
+        startGame();
+      }, 400);
+      clearInterval(iv);
+    }
+  }, 700);
+}
+
+function startGame() {
+  score = 0;
+  combo = 0;
+  timeLeft = GAME_DURATION;
+  tiles = [];
+  tileId = 0;
+  spawnTimer = 0;
+  spawnInterval = 40;
+  speed = BASE_SPEED;
+  lastCol = -1;
+  gameRunning = true;
+
+  document.getElementById('scoreDisplay').textContent = '0';
+  document.getElementById('timerDisplay').textContent = GAME_DURATION.toFixed(1);
+
+  document.querySelectorAll('.column').forEach(c => c.innerHTML = '');
+
+  timerInterval = setInterval(() => {
+    timeLeft -= 0.1;
+    if (timeLeft <= 0) {
+      timeLeft = 0;
+      endGame();
+    }
+    document.getElementById('timerDisplay').textContent = timeLeft.toFixed(1);
+    if (timeLeft <= 5) {
+      document.getElementById('timerDisplay').style.color = '#ff0000';
+    }
+  }, 100);
+
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+function gameLoop() {
+  if (!gameRunning) return;
+
+  spawnTimer++;
+  if (spawnTimer >= spawnInterval) {
+    spawnTimer = 0;
+    spawnTile();
+  }
+
+  // Increase difficulty
+  if (score > 20) { speed = BASE_SPEED + 1; spawnInterval = 35; }
+  if (score > 50) { speed = BASE_SPEED + 2; spawnInterval = 30; }
+  if (score > 80) { speed = BASE_SPEED + 3; spawnInterval = 25; }
+
+  const boardHeight = document.getElementById('board').clientHeight;
+
+  for (let i = tiles.length - 1; i >= 0; i--) {
+    const t = tiles[i];
+    if (t.hit) continue;
+    t.y += speed;
+    t.el.style.top = t.y + 'px';
+
+    if (t.y > boardHeight + 10) {
+      t.el.remove();
+      tiles.splice(i, 1);
+      combo = 0;
+    }
+  }
+
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+function spawnTile() {
+  let col;
+  do {
+    col = Math.floor(Math.random() * 4);
+  } while (col === lastCol);
+  lastCol = col;
+
+  const tile = document.createElement('div');
+  tile.className = 'tile';
+  tile.innerHTML = `<img src="${currentImage}" alt="">`;
+  const id = tileId++;
+  tile.dataset.id = id;
+
+  const column = document.querySelector(`.column[data-col="${col}"]`);
+  column.appendChild(tile);
+
+  const tileData = { id, col, y: -TILE_HEIGHT, hit: false, el: tile };
+  tile.style.top = tileData.y + 'px';
+  tiles.push(tileData);
+
+  tile.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    hitTile(tileData, e);
+  });
+}
+
+function hitTile(t, e) {
+  if (t.hit || !gameRunning) return;
+  t.hit = true;
+  t.el.classList.add('hit');
+  score++;
+  combo++;
+  document.getElementById('scoreDisplay').textContent = score;
+
+  // Click feedback
+  const rect = t.el.getBoundingClientRect();
+  const fb = document.createElement('div');
+  fb.className = 'click-feedback';
+  fb.style.left = (e.clientX - rect.left) + 'px';
+  fb.style.top = (e.clientY - rect.top) + 'px';
+  t.el.appendChild(fb);
+
+  // Combo text
+  if (combo >= 5 && combo % 5 === 0) {
+    const ct = document.createElement('div');
+    ct.className = 'combo-text';
+    ct.textContent = `${combo} 连击!`;
+    document.getElementById('board').appendChild(ct);
+    setTimeout(() => ct.remove(), 600);
+  }
+
+  setTimeout(() => {
+    t.el.remove();
+    const idx = tiles.indexOf(t);
+    if (idx > -1) tiles.splice(idx, 1);
+  }, 100);
+}
+
+function endGame() {
+  gameRunning = false;
+  clearInterval(timerInterval);
+  cancelAnimationFrame(animFrame);
+  document.getElementById('timerDisplay').style.color = '#e94560';
+
+  document.getElementById('game').style.display = 'none';
+  document.getElementById('result').style.display = 'flex';
+  document.getElementById('finalScore').textContent = score;
+
+  let comment = '';
+  if (score >= 100) comment = '太强了！手速之神！';
+  else if (score >= 70) comment = '非常厉害！';
+  else if (score >= 40) comment = '还不错哦~';
+  else if (score >= 20) comment = '继续加油！';
+  else comment = '再练练吧~';
+  document.getElementById('comment').textContent = `${currentMode} 模式 - ${comment}`;
+}
+
+function restartGame() {
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('game').style.display = 'flex';
+  document.querySelectorAll('.column').forEach(c => c.innerHTML = '');
+  startCountdown();
+}
+
+function backToMenu() {
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('menu').style.display = 'flex';
+}
+
+// Prevent scrolling on mobile
+document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+</script>
+</body>
+</html>
