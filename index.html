@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>还没有靠枕</title>
+<title>不到一百分就要和任做</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -210,14 +210,14 @@ body {
   <h1>还没有靠枕</h1>
   <p>选择模式开始游戏</p>
   <div style="display:flex;flex-direction:column;gap:16px;">
-    <button class="mode-btn" onclick="selectMode('唧唧糖蜜')">
-      <img src="唧唧糖蜜.jpg" alt="">唧唧糖蜜
+    <button class="mode-btn" onclick="selectMode('任')">
+      <img src="任.jpg" alt="">任
     </button>
-    <button class="mode-btn" onclick="selectMode('扫福瑞saj')">
-      <img src="扫福瑞saj.jpg" alt="">扫福瑞saj
+    <button class="mode-btn" onclick="selectMode('翔')">
+      <img src="翔.jpg" alt="">翔
     </button>
-    <button class="mode-btn" onclick="selectMode('煞笔宝哥')">
-      <img src="煞笔宝哥.jpg" alt="">煞笔宝哥
+    <button class="mode-btn" onclick="selectMode('？？？')">
+      <img src="？？？.jpg" alt="">？？？
     </button>
   </div>
 </div>
@@ -257,9 +257,9 @@ let rows = []; // each row: { el, activeCol }
 let timerInterval = null;
 
 const modeImages = {
-  '唧唧糖蜜': '唧唧糖蜜.jpg',
-  '扫福瑞saj': '扫福瑞saj.jpg',
-  '煞笔宝哥': '煞笔宝哥.jpg'
+  '任': '任.jpg',
+  '翔': '翔.jpg',
+  '？？？': '？？？.jpg'
 };
 
 function selectMode(mode) {
@@ -333,11 +333,8 @@ function handleCellClick(cell, col) {
   const bottomRow = rows[rows.length - 1];
   const clickedRow = cell.closest('.row');
 
-  // Must click bottom row
+  // Only bottom row counts; ignore taps on other rows to avoid mis-touch failures.
   if (clickedRow !== bottomRow.el) {
-    // Clicked wrong row - game over
-    cell.classList.add('wrong');
-    endGame('点错位置了！');
     return;
   }
 
